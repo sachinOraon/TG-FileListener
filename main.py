@@ -2,6 +2,7 @@ import os
 import json
 import logging
 import asyncio
+import aiohttp_cors
 from http import HTTPStatus
 from typing import Optional, Union
 from dotenv import load_dotenv
@@ -198,6 +199,11 @@ async def start_services():
         logger.error(f"Failed to start pyrogram session, error:: {e.MESSAGE}")
     logger.info("Setting up web server")
     web_app.add_routes(routes)
+    cors = aiohttp_cors.setup(web_app, defaults={
+        "*": aiohttp_cors.ResourceOptions(allow_credentials=True, allow_headers="*", expose_headers="*")
+    })
+    for route in list(web_app.router.routes()):
+        cors.add(route)
     server = web.AppRunner(web_app)
     await server.setup()
     await web.TCPSite(runner=server, host='0.0.0.0', port=SERVER_PORT).start()
