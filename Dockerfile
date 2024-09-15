@@ -1,4 +1,5 @@
-FROM python:3.10-alpine
+FROM python:3.10-slim
+RUN DEBIAN_FRONTEND=noninteractive apt-get update && apt-get install --assume-yes --quiet --no-install-recommends build-essential
 COPY . /usr/src/app
 WORKDIR /usr/src/app
 RUN python -m pip install --upgrade pip
