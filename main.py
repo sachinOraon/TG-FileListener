@@ -100,7 +100,7 @@ async def fetch_link(request: web.Request):
                 logger.info(f"Found link for:: {file_id}")
                 return web.json_response(data={
                     'fileId': file_id,
-                    'fileLink': FILE_LINK_DICT[file_id]
+                    'file': FILE_LINK_DICT[file_id]
                 }, status=HTTPStatus.OK.value)
             else:
                 logger.error(f"No link found for:: {file_id}")
