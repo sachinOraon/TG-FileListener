@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from pyrogram.types import Message, Document, Video, Audio
 from pyrogram.handlers import MessageHandler, EditedMessageHandler
 from pyrogram import Client, enums, errors, idle, filters
-from aiohttp import web, ClientSession, ClientTimeout
+from aiohttp import web, ClientSession, ClientTimeout, web_urldispatcher
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -203,7 +203,8 @@ async def start_services():
         "*": aiohttp_cors.ResourceOptions(allow_credentials=True, allow_headers="*", expose_headers="*")
     })
     for route in list(web_app.router.routes()):
-        cors.add(route)
+        if not isinstance(route.resource, web_urldispatcher.StaticResource):
+            cors.add(route)
     server = web.AppRunner(web_app)
     await server.setup()
     await web.TCPSite(runner=server, host='0.0.0.0', port=SERVER_PORT).start()
