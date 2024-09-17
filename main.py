@@ -2,18 +2,22 @@ import os
 import json
 import logging
 import asyncio
-import aiohttp_cors
 from http import HTTPStatus
 from typing import Optional, Union
 from dotenv import load_dotenv
 from pyrogram.types import Message, Document, Video, Audio
 from pyrogram.handlers import MessageHandler, EditedMessageHandler
 from pyrogram import Client, enums, errors, idle, filters
-from aiohttp import web, ClientSession, ClientTimeout, web_urldispatcher
+from aiohttp import web, ClientSession, ClientTimeout
+from aiohttp_middlewares import cors_middleware
+from aiohttp_middlewares.cors import ACCESS_CONTROL_ALLOW_ORIGIN, DEFAULT_ALLOW_HEADERS
+from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type, RetryError
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger(__name__)
-web_app = web.Application()
+web_app = web.Application(middlewares=[
+    cors_middleware(allow_all=True, allow_headers=DEFAULT_ALLOW_HEADERS + (ACCESS_CONTROL_ALLOW_ORIGIN,))
+])
 routes = web.RouteTableDef()
 loop = asyncio.get_event_loop()
 lock = asyncio.Lock()
@@ -95,19 +99,28 @@ async def fetch_link(request: web.Request):
         return web.json_response(data={
             'error': 'no fileId is provided'
         }, status=HTTPStatus.BAD_REQUEST.value)
-    else:
-        async with lock:
-            if file_id in FILE_LINK_DICT:
-                logger.info(f"Found link for:: {file_id}")
-                return web.json_response(data={
-                    'fileId': file_id,
-                    'file': FILE_LINK_DICT[file_id]
-                }, status=HTTPStatus.OK.value)
-            else:
-                logger.error(f"No link found for:: {file_id}")
-                return web.json_response(data={
-                    'error': 'No link found for given fileId'
-                }, status=HTTPStatus.BAD_REQUEST.value)
+    try:
+        return await find_file_line(file_id)
+    except RetryError as r:
+        err_msg = f"Unable to find link for: {file_id} even after retrying for {r.last_attempt.attempt_number} attempts"
+        logger.error(err_msg)
+        return web.json_response(data={
+            'error': err_msg
+        }, status=HTTPStatus.BAD_REQUEST.value)
+
+
+@retry(wait=wait_exponential(multiplier=2, min=3, max=6), stop=stop_after_attempt(2),
+       retry=(retry_if_exception_type(KeyError)))
+async def find_file_line(file_id: str):
+    async with lock:
+        if file_id in FILE_LINK_DICT:
+            logger.info(f"Found link for:: {file_id}")
+            return web.json_response(data={
+                'fileId': file_id,
+                'file': FILE_LINK_DICT[file_id]
+            }, status=HTTPStatus.OK.value)
+        else:
+            raise KeyError
 
 
 async def ping_server():
@@ -199,12 +212,6 @@ async def start_services():
         logger.error(f"Failed to start pyrogram session, error:: {e.MESSAGE}")
     logger.info("Setting up web server")
     web_app.add_routes(routes)
-    cors = aiohttp_cors.setup(web_app, defaults={
-        "*": aiohttp_cors.ResourceOptions(allow_credentials=True, allow_headers="*", expose_headers="*")
-    })
-    for route in list(web_app.router.routes()):
-        if not isinstance(route.resource, web_urldispatcher.StaticResource):
-            cors.add(route)
     server = web.AppRunner(web_app)
     await server.setup()
     await web.TCPSite(runner=server, host='0.0.0.0', port=SERVER_PORT).start()

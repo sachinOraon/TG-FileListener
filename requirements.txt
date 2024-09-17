@@ -1,5 +1,6 @@
 aiohttp==3.10.5
+aiohttp-middlewares==2.4.0
 Pyrogram==2.0.106
 TgCrypto==1.2.5
 python-dotenv==1.0.1
-aiohttp_cors
+tenacity==9.0.0
