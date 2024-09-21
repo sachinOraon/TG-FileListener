@@ -164,20 +164,20 @@ async def file_listener(client: Client, message: Message):
         if file_obj:
             logger.info(f"FileName:: {file_obj.file_name} FileUniqueId:: {file_obj.file_unique_id}")
             if message.reply_markup and message.reply_markup.inline_keyboard:
+                download_links = []
                 for button_list in message.reply_markup.inline_keyboard:
-                    download_links = []
                     for button in button_list:
                         if button.text and ("Slow Link" in button.text or "DL Link" in button.text) and button.url:
                             logger.debug(f"Found download link:: {button.url}")
                             download_links.append(button.url)
-                    if download_links:
-                        logger.info(f"Found {len(download_links)} links for:: {file_obj.file_unique_id}")
-                        async with lock:
-                            FILE_LINK_DICT[file_obj.file_unique_id] = {
-                                "fileName": file_obj.file_name,
-                                "downloadLink": download_links
-                            }
-                        logger.info(f"Updated FILE_LINK_DICT current size is:: {len(FILE_LINK_DICT)}")
+                if download_links:
+                    logger.info(f"Found {len(download_links)} links for:: {file_obj.file_unique_id}")
+                    async with lock:
+                        FILE_LINK_DICT[file_obj.file_unique_id] = {
+                            "fileName": file_obj.file_name,
+                            "downloadLink": download_links
+                        }
+                    logger.info(f"Updated FILE_LINK_DICT current size is:: {len(FILE_LINK_DICT)}")
             else:
                 logger.error(f"No reply_markup found for:: {file_obj.file_name}")
     except errors.RPCError as e:
