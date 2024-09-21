@@ -100,7 +100,7 @@ async def fetch_link(request: web.Request):
             'error': 'no fileId is provided'
         }, status=HTTPStatus.BAD_REQUEST.value)
     try:
-        return await find_file_line(file_id)
+        return await find_file_link(file_id)
     except RetryError as r:
         err_msg = f"Unable to find link for: {file_id} even after retrying for {r.last_attempt.attempt_number} attempts"
         logger.error(err_msg)
@@ -111,7 +111,7 @@ async def fetch_link(request: web.Request):
 
 @retry(wait=wait_exponential(multiplier=2, min=3, max=6), stop=stop_after_attempt(2),
        retry=(retry_if_exception_type(KeyError)))
-async def find_file_line(file_id: str):
+async def find_file_link(file_id: str):
     async with lock:
         if file_id in FILE_LINK_DICT:
             logger.info(f"Found link for:: {file_id}")
@@ -166,12 +166,17 @@ async def file_listener(client: Client, message: Message):
             if message.reply_markup and message.reply_markup.inline_keyboard:
                 for button_list in message.reply_markup.inline_keyboard:
                     for button in button_list:
-                        if button.text and "DL Link" in button.text and button.url:
-                            logger.info(f"Found download link:: {button.url}")
+                        btn_txt_list = ["Slow Link", "DL Link"]
+                        download_links = []
+                        for btn_txt in btn_txt_list:
+                            if button.text and btn_txt in button.text and button.url:
+                                logger.info(f"Found download link:: {button.url}")
+                                download_links.append(button.url)
+                        if download_links:
                             async with lock:
                                 FILE_LINK_DICT[file_obj.file_unique_id] = {
                                     "fileName": file_obj.file_name,
-                                    "downloadLink": button.url
+                                    "downloadLink": download_links
                                 }
                             logger.info(f"Updated FILE_LINK_DICT current size is:: {len(FILE_LINK_DICT)}")
             else:
